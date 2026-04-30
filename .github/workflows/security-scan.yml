@@ -29,20 +29,21 @@ jobs:
       # ----------------------------
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
+        with:
+          args: >
+            git
+            --report-format json
+            --report-path gitleaks-report.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_REPORT_FORMAT: json
-          GITLEAKS_REPORT_PATH: gitleaks-report.json
 
       # ----------------------------
       # 4. Semgrep (SAST)
       # ----------------------------
       - name: Run Semgrep
-        if: always()
         run: |
           pip install semgrep
-          semgrep --config policies/semgrep-rules/ \
+          semgrep --config p/default \
                   --sarif \
                   --output semgrep-results.sarif \
                   --error || true

@@ -1,7 +1,6 @@
 rules:
-  - id: no-eval-usage
-    patterns:
-      - pattern: eval(...)
-    message: "Avoid using eval() - can lead to code injection"
+  - id: python-eval
+    pattern: eval(...)
+    message: "eval is dangerous"
+    languages: [python]
     severity: ERROR
-    languages: [javascript]
