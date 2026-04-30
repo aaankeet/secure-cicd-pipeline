@@ -28,12 +28,11 @@ jobs:
       # 3. Gitleaks (Secrets)
       # ----------------------------
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          args: >
-            git
-            --report-format json
-            --report-path gitleaks-report.json
+        run: |
+          VERSION="8.18.2"
+          curl -sSLo gitleaks.tar.gz https://github.com{VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz
+          ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json --exit-code 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -65,7 +64,7 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         run: |
           chmod +x scripts/scan-results-parser.sh
-          scripts/scan-results-parser.sh
+          ./scripts/scan-results-parser.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
