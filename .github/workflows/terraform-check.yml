@@ -1,0 +1,47 @@
+name: Terraform Security Check
+
+on:
+  pull_request:
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+  push:
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+
+jobs:
+  terraform-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Terraform (for validation)
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # 3. Terraform Init (safe mode)
+      - name: Terraform Init
+        run: terraform init -backend=false
+        working-directory: terraform
+
+      # 4. Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform
+
+      # 5. Run Checkov
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform
+          config_file: policies/checkov-config/checkov.yaml
+          output_format: json
+          output_file_path: checkov-report.json
+
+      # 6. Show results (debug)
+      - name: Show Checkov Results
+        run: cat checkov-report.json || true

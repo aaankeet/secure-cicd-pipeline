@@ -1,0 +1,6 @@
+skip-check:
+  - CKV_AWS_20 # Example: skip S3 logging requirement (too strict for demo)
+
+check:
+  - CKV_AWS_21 # Ensure S3 bucket has encryption
+  - CKV_AWS_23 # Ensure no public read accessd

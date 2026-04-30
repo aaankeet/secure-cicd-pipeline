@@ -1,0 +1,70 @@
+name: Security Scan Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install jq (needed for parser)
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      # ----------------------------
+      # 3. Gitleaks (Secrets)
+      # ----------------------------
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --report-format json --report-path gitleaks-report.json --exit-code 1
+
+      # ----------------------------
+      # 4. Semgrep (SAST)
+      # ----------------------------
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: policies/semgrep-rules/
+          generateSarif: true
+          fail-on: error
+
+      # Rename SARIF output for consistency
+      - name: Rename Semgrep output
+        run: mv semgrep.sarif semgrep-results.sarif || true
+
+      # ----------------------------
+      # 5. Debug
+      # ----------------------------
+      - name: List generated files
+        run: ls -lah
+
+      # ----------------------------
+      # 6. Run Parser Script
+      # ----------------------------
+      - name: Run Scan Results Parser
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          chmod +x scripts/scan-results-parser.sh
+          scripts/scan-results-parser.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      # ----------------------------
+      # 6. Upload Scan Reports
+      # ----------------------------
+      - name: Upload scan reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            gitleaks-report.json
+            semgrep-results.sarif

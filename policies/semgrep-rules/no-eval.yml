@@ -1,0 +1,7 @@
+rules:
+  - id: no-eval-usage
+    patterns:
+      - pattern: eval(...)
+    message: "Avoid using eval() - can lead to code injection"
+    severity: ERROR
+    languages: [javascript]

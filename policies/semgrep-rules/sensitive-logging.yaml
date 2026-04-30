@@ -1,0 +1,7 @@
+rules:
+  - id: sensitive-logging
+    patterns:
+      - pattern: console.log(...)
+    message: "Avoid logging sensitive data"
+    severity: WARNING
+    languages: [javascript]

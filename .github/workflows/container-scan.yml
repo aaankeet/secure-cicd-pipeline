@@ -1,0 +1,42 @@
+name: Container Security Scan
+
+on:
+  push:
+    paths:
+      - "app/**"
+      - "Dockerfile"
+  pull_request:
+    paths:
+      - "app/**"
+      - "Dockerfile"
+
+jobs:
+  container-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Build Docker image
+      - name: Build Docker image
+        run: docker build -t secure-app .
+
+      # 3. Scan image with Trivy
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: secure-app
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      # 4. Optional: Save scan report
+      - name: Save Trivy report
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: secure-app
+          format: json
+          output: trivy-report.json
+          exit-code: 0

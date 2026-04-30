@@ -1,0 +1,5 @@
+exceptions:
+  - id: CKV_AWS_23
+    resource: aws_s3_bucket.example
+    reason: "Temporary public access required for testing"
+    expires: "2026-12-31"
