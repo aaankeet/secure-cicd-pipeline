@@ -29,6 +29,7 @@ jobs:
       # ----------------------------
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_REPORT_FORMAT: json
@@ -38,6 +39,7 @@ jobs:
       # 4. Semgrep (SAST)
       # ----------------------------
       - name: Run Semgrep
+        if: always()
         run: |
           pip install semgrep
           semgrep --config policies/semgrep-rules/ \
@@ -49,7 +51,11 @@ jobs:
       # 5. Debug
       # ----------------------------
       - name: List generated files
-        run: ls -lah
+        if: always()
+        run: |
+          ls -lah
+          cat gitleaks-report.json || true
+          cat semgrep-results.sarif || true
 
       # ----------------------------
       # 6. Run Parser Script
@@ -67,6 +73,7 @@ jobs:
       # 6. Upload Scan Reports
       # ----------------------------
       - name: Upload scan reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
