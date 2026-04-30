@@ -31,20 +31,19 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_REPORT_FORMAT: json
+          GITLEAKS_REPORT_PATH: gitleaks-report.json
 
       # ----------------------------
       # 4. Semgrep (SAST)
       # ----------------------------
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: policies/semgrep-rules/
-          generateSarif: true
-          fail-on: error
-
-      # Rename SARIF output for consistency
-      - name: Rename Semgrep output
-        run: mv semgrep.sarif semgrep-results.sarif || true
+        run: |
+          pip install semgrep
+          semgrep --config policies/semgrep-rules/ \
+                  --sarif \
+                  --output semgrep-results.sarif \
+                  --error || true
 
       # ----------------------------
       # 5. Debug
