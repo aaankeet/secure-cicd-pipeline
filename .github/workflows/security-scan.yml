@@ -30,7 +30,7 @@ jobs:
       - name: Run Gitleaks
         run: |
           VERSION="8.18.2"
-          curl -sSLo gitleaks.tar.gz https://github.com/{VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz
+          curl -sSLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
           tar -xzf gitleaks.tar.gz
           ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json --exit-code 0
         env:
@@ -62,9 +62,9 @@ jobs:
         run: |
           chmod +x scripts/scan-results-parser.sh
           ./scripts/scan-results-parser.sh
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            PR_NUMBER: ${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       # ----------------------------
       # 6. Upload Scan Reports
