@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -euo pipefail
 
 echo "🔍 Parsing security scan results..."
@@ -11,46 +10,75 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # ----------------------------
-# Initialize report
+# Initialize report (REAL newlines)
 # ----------------------------
 comment="## 🛡️ Security Scan Results"$'\n\n'
 
-# --- Gitleaks Refinement ---
-if [ -s "gitleaks-report.json" ] && [ "$(jq 'length' gitleaks-report.json)" -gt 0 ]; then
-    leaks_count=$(jq 'length' gitleaks-report.json)
-    comment+="### ❌ Secrets Found ($leaks_count)"$'\n'
-    comment+="| File | Line | Secret Type |\n| :--- | :--- | :--- |"$'\n'
+# ----------------------------
+# Gitleaks (Secrets - CLI style)
+# ----------------------------
+if [ -s "gitleaks-report.json" ]; then
+  leaks=$(jq 'length' gitleaks-report.json)
 
-    # Extract top 10 leaks to avoid hitting PR comment character limits
-    findings=$(jq -r '.[:10] | .[] | "| \(.File) | \(.StartLine) | \(.Description) |"' gitleaks-report.json)
-    comment+="$findings"$'\n\n'
+  if [ "$leaks" -gt 0 ]; then
+    comment+="❌ Secrets Found ($leaks)"$'\n\n'
 
-    if [ "$leaks_count" -gt 10 ]; then
-        comment+="*...and $((leaks_count - 10)) more findings. Check artifacts for full report.*"$'\n\n'
+    findings=$(jq -r '.[:10][] |
+"Finding: \(.Match)
+Secret: REDACTED
+RuleID: \(.RuleID)
+Entropy: \(.Entropy)
+File: \(.File)
+Line: \(.StartLine)
+Fingerprint: \(.Fingerprint)
+"' gitleaks-report.json)
+
+    comment+="$findings"$'\n'
+
+    if [ "$leaks" -gt 10 ]; then
+      comment+=$'\n'"...and $((leaks - 10)) more findings. Check artifacts."$'\n'
     fi
+
+  else
+    comment+="✅ No secrets detected"$'\n\n'
+  fi
 else
-    comment+="### ✅ Secrets\nNo hardcoded secrets detected."$'\n\n'
+  comment+="⚠️ No Gitleaks report found"$'\n\n'
 fi
 
-# --- Semgrep Refinement ---
+# ----------------------------
+# Semgrep (SAST)
+# ----------------------------
 if [ -s "semgrep-results.sarif" ]; then
-    critical=$(jq '[.runs[].results[]? | select(.level=="error")] | length' semgrep-results.sarif)
-    if [ "$critical" -gt 0 ]; then
-        comment+="### ❌ SAST Issues\nFound **$critical** critical vulnerabilities. Please check the 'Security' tab or uploaded SARIF report."$'\n\n'
-    else
-        comment+="### ✅ SAST\nNo critical vulnerabilities found."$'\n\n'
-    fi
+  critical=$(jq '[.runs[].results[]? | select(.level=="error")] | length' semgrep-results.sarif)
+
+  if [ "$critical" -gt 0 ]; then
+    comment+=$'\n'"❌ SAST: $critical critical issues detected"$'\n'
+  else
+    comment+=$'\n'"✅ SAST: No critical vulnerabilities"$'\n'
+  fi
+else
+  comment+=$'\n'"⚠️ No Semgrep report found"$'\n'
 fi
 
-# --- Post to PR ---
+# ----------------------------
+# Output
+# ----------------------------
+echo "$comment"
+
+# ----------------------------
+# Post to PR
+# ----------------------------
 if [ -n "${PR_NUMBER:-}" ]; then
-    echo "Posting to PR $PR_NUMBER..."
-    payload=$(jq -n --arg body "$comment" '{body: $body}')
-    curl -sS -X POST \
-      -H "Authorization: token $GITHUB_TOKEN" \
-      -H "Accept: application/vnd.github+json" \
-      "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-      -d "$payload"
+  echo "📢 Posting comment to PR #$PR_NUMBER"
+
+  payload=$(jq -n --arg body "$comment" '{body: $body}')
+
+  curl -sS -X POST \
+    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+    -d "$payload"
 else
-    echo -e "$comment"
+  echo "⚠️ Not a PR run, skipping comment"
 fi
