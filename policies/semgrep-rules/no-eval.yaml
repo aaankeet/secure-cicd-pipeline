@@ -1,6 +1,6 @@
 rules:
   - id: python-eval
-    pattern: eval(...)
+    pattern: eval($X)
     message: "eval is dangerous"
     languages: [python]
     severity: ERROR

@@ -13,32 +13,32 @@ fi
 # ----------------------------
 # Initialize report
 # ----------------------------
-comment="## 🛡️ Security Scan Results\n\n"
+comment="## 🛡️ Security Scan Results"$'\n\n'
 
 # --- Gitleaks Refinement ---
 if [ -s "gitleaks-report.json" ] && [ "$(jq 'length' gitleaks-report.json)" -gt 0 ]; then
     leaks_count=$(jq 'length' gitleaks-report.json)
-    comment+="### ❌ Secrets Found ($leaks_count)\n"
-    comment+="| File | Line | Secret Type |\n| :--- | :--- | :--- |\n"
+    comment+="### ❌ Secrets Found ($leaks_count)"$'\n'
+    comment+="| File | Line | Secret Type |\n| :--- | :--- | :--- |"$'\n'
 
     # Extract top 10 leaks to avoid hitting PR comment character limits
     findings=$(jq -r '.[:10] | .[] | "| \(.File) | \(.StartLine) | \(.Description) |"' gitleaks-report.json)
-    comment+="$findings\n\n"
+    comment+="$findings"$'\n\n'
 
     if [ "$leaks_count" -gt 10 ]; then
-        comment+="*...and $((leaks_count - 10)) more findings. Check artifacts for full report.*\n\n"
+        comment+="*...and $((leaks_count - 10)) more findings. Check artifacts for full report.*"$'\n\n'
     fi
 else
-    comment+="### ✅ Secrets\nNo hardcoded secrets detected.\n\n"
+    comment+="### ✅ Secrets\nNo hardcoded secrets detected."$'\n\n'
 fi
 
 # --- Semgrep Refinement ---
 if [ -s "semgrep-results.sarif" ]; then
     critical=$(jq '[.runs[].results[]? | select(.level=="error")] | length' semgrep-results.sarif)
     if [ "$critical" -gt 0 ]; then
-        comment+="### ❌ SAST Issues\nFound **$critical** critical vulnerabilities. Please check the 'Security' tab or uploaded SARIF report.\n\n"
+        comment+="### ❌ SAST Issues\nFound **$critical** critical vulnerabilities. Please check the 'Security' tab or uploaded SARIF report."$'\n\n'
     else
-        comment+="### ✅ SAST\nNo critical vulnerabilities found.\n\n"
+        comment+="### ✅ SAST\nNo critical vulnerabilities found."$'\n\n'
     fi
 fi
 

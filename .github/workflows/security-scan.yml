@@ -42,7 +42,10 @@ jobs:
       - name: Run Semgrep
         run: |
           pip install semgrep
-          semgrep --config policies/semgrep-rules \
+          semgrep --config p/python \
+                  --config p/security-audit \
+                  --config policies/semgrep-rules \
+                  --include '*.py' \
                   --sarif \
                   --output semgrep-results.sarif \
                   --error || true
