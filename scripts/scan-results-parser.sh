@@ -15,9 +15,7 @@ fi
 # ----------------------------
 comment="## 🛡️ Security Scan Results\n\n"
 
-# ----------------------------
-# Gitleaks (Secrets)
-# ----------------------------
+# --- Gitleaks Refinement ---
 if [ -s "gitleaks-report.json" ] && [ "$(jq 'length' gitleaks-report.json)" -gt 0 ]; then
     leaks_count=$(jq 'length' gitleaks-report.json)
     comment+="### ❌ Secrets Found ($leaks_count)\n"
@@ -34,9 +32,7 @@ else
     comment+="### ✅ Secrets\nNo hardcoded secrets detected.\n\n"
 fi
 
-# ----------------------------
-# Semgrep (SAST)
-# ----------------------------
+# --- Semgrep Refinement ---
 if [ -s "semgrep-results.sarif" ]; then
     critical=$(jq '[.runs[].results[]? | select(.level=="error")] | length' semgrep-results.sarif)
     if [ "$critical" -gt 0 ]; then
@@ -46,14 +42,7 @@ if [ -s "semgrep-results.sarif" ]; then
     fi
 fi
 
-# ----------------------------
-# Output result
-# ----------------------------
-echo -e "$comment"
-
-# ----------------------------
-# Post comment to PR
-# ----------------------------
+# --- Post to PR ---
 if [ -n "${PR_NUMBER:-}" ]; then
     echo "Posting to PR $PR_NUMBER..."
     payload=$(jq -n --arg body "$comment" '{body: $body}')
