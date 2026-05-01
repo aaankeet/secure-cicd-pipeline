@@ -1,0 +1,6 @@
+rules:
+  - id: python-eval
+    pattern: eval(...)
+    message: "eval is dangerous"
+    languages: [python]
+    severity: ERROR
