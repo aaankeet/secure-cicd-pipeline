@@ -1,84 +1,154 @@
 #!/bin/bash
+
 set -euo pipefail
 
 echo "🔍 Parsing security scan results..."
 
-# Check jq
+# ----------------------------
+# Check dependencies
+# ----------------------------
 if ! command -v jq &> /dev/null; then
-  echo "❌ jq is required"
+  echo "❌ jq is required but not installed"
   exit 1
 fi
 
 # ----------------------------
-# Initialize report (REAL newlines)
+# Initialize report
 # ----------------------------
-comment="## 🛡️ Security Scan Results"$'\n\n'
+comment="## 🛡️ Security Scan Results\n\n"
+comment+="> Branch: \`${GITHUB_HEAD_REF:-unknown}\` | Run: [#${GITHUB_RUN_NUMBER:-?}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID:-0})\n\n"
+comment+="---\n\n"
+
+overall_status="pass"
 
 # ----------------------------
-# Gitleaks (Secrets - CLI style)
+# Gitleaks (Secrets Detection)
 # ----------------------------
-if [ -s "gitleaks-report.json" ]; then
-  leaks=$(jq 'length' gitleaks-report.json)
+comment+="### 🔑 Secrets Detection (Gitleaks)\n\n"
+
+if [ -f "gitleaks-report.json" ]; then
+  leaks=$(jq 'length' gitleaks-report.json 2>/dev/null || echo 0)
 
   if [ "$leaks" -gt 0 ]; then
-    comment+="❌ Secrets Found ($leaks)"$'\n\n'
+    overall_status="fail"
+    comment+="❌ **$leaks secret(s) found**\n\n"
+    comment+="| # | Rule | File | Line | Fingerprint |\n"
+    comment+="|---|------|------|------|-------------|\n"
 
-    findings=$(jq -r '.[:10][] |
-"Finding: \(.Match)
-Secret: REDACTED
-RuleID: \(.RuleID)
-Entropy: \(.Entropy)
-File: \(.File)
-Line: \(.StartLine)
-Fingerprint: \(.Fingerprint)
-"' gitleaks-report.json)
+    # Build table rows for each finding
+    while IFS= read -r row; do
+      rule=$(echo "$row"   | jq -r '.RuleID   // "unknown"')
+      file=$(echo "$row"   | jq -r '.File     // "unknown"')
+      line=$(echo "$row"   | jq -r '.StartLine // "?"')
+      fp=$(echo "$row"     | jq -r '.Fingerprint // "N/A"')
+      short_fp="${fp:0:16}..."
 
-    comment+="$findings"$'\n'
+      comment+="| 🔴 | \`$rule\` | \`$file\` | $line | \`$short_fp\` |\n"
+    done < <(jq -c '.[]' gitleaks-report.json 2>/dev/null)
 
-    if [ "$leaks" -gt 10 ]; then
-      comment+=$'\n'"...and $((leaks - 10)) more findings. Check artifacts."$'\n'
-    fi
-
+    comment+="\n> ⚠️ Secrets have been **redacted** in this report. Rotate any exposed credentials immediately.\n\n"
   else
-    comment+="✅ No secrets detected"$'\n\n'
+    comment+="✅ **No secrets detected**\n\n"
   fi
+
 else
-  comment+="⚠️ No Gitleaks report found"$'\n\n'
+  comment+="⚠️ **Gitleaks report not found** — scan may not have run\n\n"
 fi
+
+comment+="---\n\n"
 
 # ----------------------------
 # Semgrep (SAST)
 # ----------------------------
-if [ -s "semgrep-results.sarif" ]; then
-  critical=$(jq '[.runs[].results[]? | select(.level=="error")] | length' semgrep-results.sarif)
+comment+="### 🔬 Static Analysis (Semgrep)\n\n"
 
-  if [ "$critical" -gt 0 ]; then
-    comment+=$'\n'"❌ SAST: $critical critical issues detected"$'\n'
+if [ -f "semgrep-results.sarif" ]; then
+
+  # Count ALL findings (not just level=="error" — community rules often emit "warning" in SARIF even when blocking)
+  total=$(jq '[.runs[].results[]?] | length' semgrep-results.sarif 2>/dev/null || echo 0)
+
+  # Separate by level
+  errors=$(jq '[.runs[].results[]? | select(.level=="error")] | length'   semgrep-results.sarif 2>/dev/null || echo 0)
+  warnings=$(jq '[.runs[].results[]? | select(.level=="warning")] | length' semgrep-results.sarif 2>/dev/null || echo 0)
+  notes=$(jq '[.runs[].results[]? | select(.level=="note")] | length'     semgrep-results.sarif 2>/dev/null || echo 0)
+
+  if [ "$total" -gt 0 ]; then
+    # Only fail the pipeline on errors, not warnings
+    if [ "$errors" -gt 0 ]; then
+      overall_status="fail"
+      comment+="❌ **$total finding(s)** — $errors error(s), $warnings warning(s), $notes note(s)\n\n"
+    else
+      comment+="⚠️ **$total finding(s)** — $errors error(s), $warnings warning(s), $notes note(s)\n\n"
+    fi
+
+    comment+="| # | Rule ID | Severity | File | Line | Message |\n"
+    comment+="|---|---------|----------|------|------|---------|\n"
+
+    while IFS= read -r row; do
+      rule_id=$(echo "$row" | jq -r '.ruleId // "unknown"')
+      level=$(echo "$row"   | jq -r '.level  // "unknown"')
+      file=$(echo "$row"    | jq -r '.locations[0].physicalLocation.artifactLocation.uri // "unknown"')
+      line=$(echo "$row"    | jq -r '.locations[0].physicalLocation.region.startLine    // "?"')
+      msg=$(echo "$row"     | jq -r '.message.text // "No message"' | cut -c1-60)
+
+      # Pick icon based on level
+      case "$level" in
+        error)   icon="🔴" ;;
+        warning) icon="🟡" ;;
+        note)    icon="🔵" ;;
+        *)       icon="⚪" ;;
+      esac
+
+      comment+="| $icon | \`$rule_id\` | $level | \`$file\` | $line | $msg |\n"
+    done < <(jq -c '.runs[].results[]?' semgrep-results.sarif 2>/dev/null)
+
+    comment+="\n"
   else
-    comment+=$'\n'"✅ SAST: No critical vulnerabilities"$'\n'
+    comment+="✅ **No findings detected**\n\n"
   fi
+
 else
-  comment+=$'\n'"⚠️ No Semgrep report found"$'\n'
+  comment+="⚠️ **Semgrep report not found** — scan may not have run\n\n"
+fi
+
+comment+="---\n\n"
+
+# ----------------------------
+# Overall Status Footer
+# ----------------------------
+if [ "$overall_status" = "fail" ]; then
+  comment+="### 🚨 Overall Status: FAILED\n\n"
+  comment+="> One or more security checks failed. **Do not merge** until all findings are resolved or formally excepted.\n"
+else
+  comment+="### ✅ Overall Status: PASSED\n\n"
+  comment+="> All security checks passed. Safe to review for merge.\n"
 fi
 
 # ----------------------------
-# Output
+# Print to console
 # ----------------------------
-echo "$comment"
+echo -e "$comment"
 
 # ----------------------------
-# Post to PR
+# Post comment to PR
 # ----------------------------
 if [ -n "${PR_NUMBER:-}" ]; then
-  echo "📢 Posting comment to PR #$PR_NUMBER"
+  echo "📢 Posting comment to PR #$PR_NUMBER..."
 
-  payload=$(jq -n --arg body "$comment" '{body: $body}')
-
-  curl -sS -X POST \
+  HTTP_STATUS=$(curl --max-time 15 -s -o /tmp/gh_response.json -w "%{http_code}" \
     -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github+json" \
+    -H "Content-Type: application/json" \
+    -X POST \
     "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-    -d "$payload"
+    -d "$(jq -n --arg body "$(echo -e "$comment")" '{body: $body}')")
+
+  if [ "$HTTP_STATUS" = "201" ]; then
+    echo "✅ Comment posted successfully"
+  else
+    echo "❌ Failed to post comment (HTTP $HTTP_STATUS)"
+    cat /tmp/gh_response.json
+    exit 1
+  fi
 else
-  echo "⚠️ Not a PR run, skipping comment"
+  echo "⚠️ PR_NUMBER not set — skipping GitHub comment"
 fi

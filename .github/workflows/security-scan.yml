@@ -49,6 +49,7 @@ jobs:
                   --sarif \
                   --output semgrep-results.sarif \
                   --error || true
+                  --verbose
 
       # ----------------------------
       # 5. Debug
