@@ -42,7 +42,10 @@ jobs:
       - name: Run Semgrep
         run: |
           pip install semgrep
-          semgrep --config p/default --sarif --output semgrep-results.sarif --error || true
+          semgrep --config policies/semgrep-rules \
+                  --sarif \
+                  --output semgrep-results.sarif \
+                  --error || true
 
       # ----------------------------
       # 5. Debug

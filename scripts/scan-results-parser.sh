@@ -46,9 +46,11 @@ fi
 if [ -n "${PR_NUMBER:-}" ]; then
     echo "Posting to PR $PR_NUMBER..."
     payload=$(jq -n --arg body "$comment" '{body: $body}')
-    curl -s -H "Authorization: token $GITHUB_TOKEN" \
-         -X POST "https://github.com{GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-         -d "$payload"
+    curl -sS -X POST \
+      -H "Authorization: token $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+      -d "$payload"
 else
     echo -e "$comment"
 fi
