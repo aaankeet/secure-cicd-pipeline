@@ -8,4 +8,4 @@
 
 # Fixed Version
 def calculate(user_input):
-    return int(user_input)  # or safer parsing
+    return int(user_input)

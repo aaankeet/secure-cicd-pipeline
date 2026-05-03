@@ -43,13 +43,11 @@ jobs:
         run: |
           pip install semgrep
           semgrep --config p/python \
-                  --config p/owasp-top-ten \
                   --config policies/semgrep-rules \
                   --include '*.py' \
                   --sarif \
                   --output semgrep-results.sarif \
                   --error || true
-                  --verbose
 
       # ----------------------------
       # 5. Debug

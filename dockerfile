@@ -2,6 +2,7 @@
 
 # ✅ Use a newer, minimal, patched image
 FROM python:3.12-slim
+RUN apt-get update && apt-get upgrade -y && apt-get clean
 
 # ✅ Prevent Python from writing .pyc files & buffering logs
 ENV PYTHONDONTWRITEBYTECODE=1
