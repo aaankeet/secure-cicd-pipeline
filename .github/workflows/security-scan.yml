@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  pull-requests: write
+  contents: read
+
 jobs:
   security-scan:
     runs-on: ubuntu-latest
@@ -13,38 +17,47 @@ jobs:
       # 1. Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2. Install jq (needed for parser)
       - name: Install jq
         run: sudo apt-get install -y jq
 
       # ----------------------------
-      # 3. Gitleaks (Secrets)
+      # 3. Gitleaks CLI (Reliable JSON generation)
       # ----------------------------
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --report-format json --report-path gitleaks-report.json --exit-code 1
+        run: |
+          VERSION="8.18.2"
+          curl -sSLo gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz
+          ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json --exit-code 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------
       # 4. Semgrep (SAST)
       # ----------------------------
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: policies/semgrep-rules/
-          generateSarif: true
-          fail-on: error
-
-      # Rename SARIF output for consistency
-      - name: Rename Semgrep output
-        run: mv semgrep.sarif semgrep-results.sarif || true
+        run: |
+          pip install semgrep
+          semgrep --config p/python \
+                  --config policies/semgrep-rules \
+                  --include '*.py' \
+                  --sarif \
+                  --output semgrep-results.sarif \
+                  --error || true
 
       # ----------------------------
       # 5. Debug
       # ----------------------------
       - name: List generated files
-        run: ls -lah
+        if: always()
+        run: |
+          ls -lah
+          cat gitleaks-report.json || true
+          cat semgrep-results.sarif || true
 
       # ----------------------------
       # 6. Run Parser Script
@@ -53,7 +66,7 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         run: |
           chmod +x scripts/scan-results-parser.sh
-          scripts/scan-results-parser.sh
+          ./scripts/scan-results-parser.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -62,6 +75,7 @@ jobs:
       # 6. Upload Scan Reports
       # ----------------------------
       - name: Upload scan reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports

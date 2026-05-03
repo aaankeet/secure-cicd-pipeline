@@ -1,3 +1,4 @@
+# Custome Checks required in order to pass.
 check:
   - CKV_AWS_21 # Ensure S3 bucket has versioning
   - CKV_AWS_23 # Ensure no public read access
